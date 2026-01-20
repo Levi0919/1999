@@ -180,3 +180,4 @@ def main(page: ft.Page):
     render_list()
 
 ft.app(target=main)
+
