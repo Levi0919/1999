@@ -27,24 +27,20 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    # 4. 安装 Flutter
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.22.0'
-        channel: 'stable'
-
-    # 5. 安装 Flet (只用 pip 安装，避免冲突)
+    # 4. 安装 Flet 库
     - name: Install dependencies
       run: |
         pip install flet
 
-    # 6. 开始打包 (去除所有多余参数，使用默认设置)
+    # 5. 开始打包
+    # 关键修改：
+    # 1. 移除了 subosito/flutter-action (让 Flet 自己管理 Flutter 版本)
+    # 2. 增加了 "yes |" (这会自动对所有提问输入 y，防止卡住)
     - name: Build APK
       run: |
-        flet build apk --verbose
+        yes | flet build apk --verbose
 
-    # 7. 上传 APK
+    # 6. 上传 APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
