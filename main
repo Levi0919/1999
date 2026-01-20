@@ -1,0 +1,209 @@
+import flet as ft
+import colorsys
+
+# === 颜色配置 ===
+COLOR_BG = "#1A1A1A"
+COLOR_CARD = "#252525"
+COLOR_TEXT = "#E0E0E0"
+COLOR_GOLD = "#F5C342"
+COLOR_RED = "#FF4C4C"
+COLOR_GREEN = "#00FF7F"
+
+def main(page: ft.Page):
+    # 1. 手机端页面配置
+    page.title = "1999 观测记录"
+    page.theme_mode = ft.ThemeMode.DARK
+    page.bgcolor = COLOR_BG
+    page.padding = 10
+    # 允许滚动，防止键盘遮挡
+    page.scroll = ft.ScrollMode.ADAPTIVE
+
+    # === 数据逻辑 ===
+    # 从手机本地存储加载数据
+    def load_data():
+        if page.client_storage.contains_key("records"):
+            return page.client_storage.get("records")
+        return []
+
+    def save_data():
+        page.client_storage.set("records", records)
+
+    records = load_data()
+
+    # === 工具函数 ===
+    def get_color(pulls):
+        limit = 70.0
+        p = min(max(pulls, 0), limit)
+        hue = 0.35 * (1 - (p / limit))
+        r, g, b = colorsys.hsv_to_rgb(hue, 0.85, 0.95)
+        return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+
+    def get_rank(pulls):
+        if pulls <= 20: return "SSS"
+        if pulls <= 40: return "S"
+        if pulls <= 50: return "A"
+        if pulls <= 60: return "B"
+        return "C"
+
+    # === UI 组件 ===
+    
+    # 1. 顶部输入卡片
+    pool_dd = ft.Dropdown(
+        options=[ft.dropdown.Option(x) for x in ["活动池", "限定池", "特殊池", "金纺池"]],
+        value="活动池",
+        label="卡池",
+        width=100,
+        text_size=14,
+        content_padding=10
+    )
+    
+    char_tf = ft.TextField(label="角色名", expand=True, height=50, text_size=14)
+    pulls_tf = ft.TextField(label="抽数", keyboard_type=ft.KeyboardType.NUMBER, width=80, height=50, text_size=14)
+    lost_sw = ft.Switch(label="歪了", active_color=COLOR_RED)
+
+    def add_click(e):
+        if not char_tf.value or not pulls_tf.value:
+            page.show_snack_bar(ft.SnackBar(ft.Text("请填写完整信息")))
+            return
+        
+        try:
+            p_val = int(pulls_tf.value)
+        except: return
+
+        pool = pool_dd.value
+        is_guaranteed = pool in ["特殊池", "金纺池"]
+        is_lost = False if is_guaranteed else lost_sw.value
+
+        records.append({
+            "pool": pool, 
+            "character": char_tf.value, 
+            "pulls": p_val, 
+            "is_lost": is_lost
+        })
+        save_data()
+        
+        char_tf.value = ""
+        pulls_tf.value = ""
+        render_list()
+        page.update()
+
+    input_card = ft.Container(
+        bgcolor=COLOR_CARD,
+        padding=15,
+        border_radius=10,
+        content=ft.Column([
+            ft.Row([ft.Text("📝 新增记录", size=16, weight="bold")]),
+            ft.Row([pool_dd, char_tf]),
+            ft.Row([
+                pulls_tf, 
+                lost_sw, 
+                ft.ElevatedButton("记录", on_click=add_click, bgcolor=COLOR_GOLD, color="black", expand=True)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        ])
+    )
+
+    # 2. 统计与列表
+    chart_col = ft.Column(spacing=10)
+    
+    stats_text = ft.Text("暂无数据", size=12, color="grey")
+    
+    tabs = ft.Tabs(
+        selected_index=0,
+        tabs=[ft.Tab(text=n) for n in ["活动", "限定", "特殊", "金纺"]],
+        on_change=lambda e: render_list()
+    )
+
+    def render_list():
+        chart_col.controls.clear()
+        
+        # 筛选
+        filter_keys = ["活动", "限定", "特殊", "金纺"]
+        current_key = filter_keys[tabs.selected_index]
+        
+        # 倒序显示
+        data = [r for r in reversed(records) if current_key in r['pool']]
+        
+        # 更新统计简报
+        if data:
+            total_p = sum(r['pulls'] for r in data)
+            avg = total_p / len(data)
+            lost_c = sum(1 for r in data if r['is_lost'])
+            stats_text.value = f"平均: {avg:.1f}抽 | 总计: {len(data)}金"
+            if current_key not in ["特殊", "金纺"]:
+                stats_text.value += f" | 歪: {lost_c}次"
+        else:
+            stats_text.value = "该卡池暂无记录"
+
+        # 渲染列表
+        for r in data:
+            pulls = r['pulls']
+            color = get_bar_color(pulls)
+            rank = get_rank(pulls)
+            
+            # 标记符号
+            badge = ""
+            badge_col = "grey"
+            if r.get('is_lost'): 
+                badge = "LOST"
+                badge_col = COLOR_RED
+            elif current_key in ["活动", "限定"]:
+                badge = "WIN"
+                badge_col = COLOR_GOLD
+
+            # 进度条长度 (百分比)
+            bar_pct = min(pulls / 70.0, 1.0)
+            
+            # 单个卡片
+            item = ft.Container(
+                bgcolor=COLOR_CARD,
+                padding=12,
+                border_radius=8,
+                content=ft.Column([
+                    # 第一行：名字 + 评级
+                    ft.Row([
+                        ft.Text(r['character'], weight="bold", size=15),
+                        ft.Container(expand=True),
+                        ft.Text(badge, color=badge_col, size=12, weight="bold"),
+                        ft.Container(width=5),
+                        ft.Text(rank, color=color, weight="bold", size=16),
+                    ]),
+                    # 第二行：进度条
+                    ft.Stack([
+                        ft.Container(height=16, border_radius=8, bgcolor="#333", width=1000), # 底槽
+                        ft.Container(
+                            height=16, 
+                            border_radius=8, 
+                            bgcolor=color,
+                            # 使用 animate 实现简单的宽度动画效果需要结合 width
+                            # 这里简化处理，直接用 Row + expand 模拟比例
+                        )
+                    ]),
+                    # 为了实现精确的百分比宽度，我们用 Row 嵌套
+                    ft.Row([
+                        ft.Container(height=8, border_radius=4, bgcolor=color, expand=int(bar_pct*100)),
+                        ft.Container(expand=int((1-bar_pct)*100) + 1)
+                    ], spacing=0),
+                    
+                    # 抽数文字
+                    ft.Row([
+                        ft.Text(f"{pulls} 抽", size=12, color="white"),
+                    ], alignment=ft.MainAxisAlignment.END)
+                ], spacing=5)
+            )
+            chart_col.controls.append(item)
+        
+        page.update()
+
+    # 3. 页面组装
+    page.add(
+        input_card,
+        ft.Container(height=10),
+        ft.Text("📊 历史记录", weight="bold", size=16),
+        tabs,
+        ft.Container(content=stats_text, padding=ft.padding.only(bottom=10)),
+        chart_col
+    )
+    
+    render_list()
+
+ft.app(target=main)
