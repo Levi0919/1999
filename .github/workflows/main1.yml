@@ -1,0 +1,53 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # 允许手动点击按钮触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. 拉取代码 (升级到 v4)
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. 安装 Python (升级到 v5)
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    # 3. 安装 Java (安卓打包必须环境，升级到 v4)
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    # 4. 安装 Flutter (Flet 的底层核心)
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.22.0'
+        channel: 'stable'
+
+    # 5. 安装 Flet 库
+    - name: Install Flet
+      run: |
+        pip install flet
+
+    # 6. 开始打包 APK (使用 verbose 查看详细进度)
+    # 注意：Flet 会自动下载所需的 Android SDK，无需手动配置
+    - name: Build APK
+      run: |
+        flet build apk --verbose
+
+    # 7. 上传结果 (修复报错：从 v2 升级到 v4)
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: 1999-tracker-apk
+        path: build/apk/*.apk
