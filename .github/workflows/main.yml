@@ -20,40 +20,43 @@ jobs:
       with:
         python-version: '3.11'
 
-    # 3. 安装 Java 17 (安卓打包的硬性要求)
+    # 3. 安装 Java 17 (最新安卓打包标准)
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    # 4. 手动安装 Flutter Stable 版 (避免 Flet 自己下载出错)
+    # 4. 安装 Flutter (使用稳定版)
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
         channel: 'stable'
-        flutter-version: '3.22.0' # 指定一个兼容性最好的版本
 
-    # 5. 安装 Python 依赖
+    # 5. 安装 Flet
     - name: Install dependencies
       run: |
         pip install flet
 
-    # 6. 配置环境并接受安卓协议 (这是防崩溃的关键！)
+    # 6. 【关键】配置安卓环境 & 暴力接受所有协议
     - name: Configure Android Environment
       run: |
+        # 关掉分析数据上传，减少网络请求
         flutter config --no-analytics
-        # 自动接受所有安卓许可证，防止卡死
-        yes | flutter doctor --android-licenses || true 
+        
+        # 暴力接受所有安卓协议 (yes | 会自动输入 y)
+        yes | flutter doctor --android-licenses || true
+        
+        # 检查环境 (方便排错)
         flutter doctor -v
 
-    # 7. 开始打包 (因为环境都配好了，这里不需要 yes 了)
+    # 7. 【关键】开始打包 (带自动确认)
     - name: Build APK
       run: |
-        # 使用 verbose 模式，如果有错能看到具体哪里错了
-        flet build apk --verbose
+        # yes | 再次登场，防止 Flet 问 "是否下载 SDK" 时卡死
+        yes | flet build apk --verbose
 
-    # 8. 上传结果
+    # 8. 上传 APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
