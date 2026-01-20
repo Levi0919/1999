@@ -1,0 +1,61 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. 拉取代码
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. 安装 Python
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    # 3. 安装 Java 17 (安卓打包的硬性要求)
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    # 4. 手动安装 Flutter Stable 版 (避免 Flet 自己下载出错)
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+        flutter-version: '3.22.0' # 指定一个兼容性最好的版本
+
+    # 5. 安装 Python 依赖
+    - name: Install dependencies
+      run: |
+        pip install flet
+
+    # 6. 配置环境并接受安卓协议 (这是防崩溃的关键！)
+    - name: Configure Android Environment
+      run: |
+        flutter config --no-analytics
+        # 自动接受所有安卓许可证，防止卡死
+        yes | flutter doctor --android-licenses || true 
+        flutter doctor -v
+
+    # 7. 开始打包 (因为环境都配好了，这里不需要 yes 了)
+    - name: Build APK
+      run: |
+        # 使用 verbose 模式，如果有错能看到具体哪里错了
+        flet build apk --verbose
+
+    # 8. 上传结果
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: 1999-tracker-apk
+        path: build/apk/*.apk
