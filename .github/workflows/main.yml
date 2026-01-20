@@ -1,0 +1,31 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: pip install flet
+
+    - name: Flet Build APK
+      uses: flet-dev/flet-action@v0.0.1
+      with:
+        # 这里写你的 python 文件名，通常是 main.py
+        main: main.py 
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v2
+      with:
+        name: 1999-tracker-apk
+        path: build/apk/*.apk
